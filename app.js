@@ -7,7 +7,7 @@ const pr=(la,lo)=>[(lo-139.6)*73,(46-la)*100],fmt=m=>(m>=60?Math.floor(m/60)+'å°
 const gm=p=>`https://www.google.com/maps/search/?api=1&query=${p.la},${p.lo}`;
 const dir=(a,b)=>`https://www.google.com/maps/dir/?api=1&origin=${a.la},${a.lo}&destination=${b.la},${b.lo}&travelmode=driving`;
 const dayDir=pts=>`https://www.google.com/maps/dir/?api=1&origin=${pts[0].la},${pts[0].lo}&destination=${pts.at(-1).la},${pts.at(-1).lo}&travelmode=driving`+(pts.length>2?`&waypoints=${pts.slice(1,-1).map(p=>p.la+','+p.lo).join('%7C')}`:'');
-let view=0,cur=1,hi=-1;
+let view=1,cur=1,hi=-1;
 const tabs=document.getElementById('tabs'),main=document.getElementById('main');
 D.forEach((x,i)=>{const b=document.createElement('button');b.textContent=x.d;b.onclick=()=>{cur=i;hi=-1;view=0;draw()};tabs.appendChild(b)});
 const tw=e=>e.cur=='TWD'?e.orig:Math.round(e.amt*S.rate),W=n=>'NT$ '+Math.round(n).toLocaleString(),tot=()=>S.exp.reduce((a,e)=>a+tw(e),0),dsum=i=>S.exp.filter(e=>e.day==i).reduce((a,e)=>a+tw(e),0);
