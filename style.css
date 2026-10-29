@@ -61,3 +61,13 @@ footer{padding:0 16px 22px;font-size:12px;color:var(--mu)}
 .addrow input,.addrow select{width:100%;font-size:13px;padding:6px 8px}
 .addrow .btn{padding:6px 10px}
 .tb .att{margin-top:4px}
+
+/* 花費總覽與明細篩選 */
+.overview-stat{flex-wrap:wrap}
+.overview-stat div{min-width:105px}
+.split-overview{margin-top:16px;padding:12px;border:1px solid var(--ln);border-radius:12px;background:color-mix(in srgb,var(--ac) 4%,var(--card))}
+.split-list{max-height:240px;overflow:auto;margin-top:6px}
+.expense-filters{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr)) auto;gap:8px;margin:12px 0 6px;align-items:center}
+.expense-filters input,.expense-filters select{width:100%}
+.filter-result{margin:8px 0 10px}
+@media(max-width:820px){.expense-filters{grid-template-columns:1fr 1fr}.expense-filters button{width:100%}.overview-stat div{min-width:calc(50% - 8px)}}
