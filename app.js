@@ -93,9 +93,10 @@ async function exportPDF(){
  catch(e){alert('PDF 產生失敗：'+(e.message||e))}
  finally{wrap.remove()}
 }
+function decPoly(t){let i=0,la=0,lo=0,o=[];while(i<t.length){let b,sh=0,r=0;do{b=t.charCodeAt(i++)-63;r|=(b&31)<<sh;sh+=5}while(b>=32);la+=(r&1)?~(r>>1):r>>1;sh=0;r=0;do{b=t.charCodeAt(i++)-63;r|=(b&31)<<sh;sh+=5}while(b>=32);lo+=(r&1)?~(r>>1):r>>1;o.push([la/1e5,lo/1e5])}return o}
 let VB=null,VBd=-1,VB0=null,LM=null,LD=-1,RT={},RTc={};window.DR=false;
-try{RTc=JSON.parse(localStorage.getItem('hk28r')||'{}')}catch(e){}
-Object.keys(RTc).forEach(i=>{if(D[i]){RT[i]=RTc[i];D[i].legs=RTc[i].legs}});
+try{RTc=JSON.parse(localStorage.getItem('hk29r')||'{}')}catch(e){}
+Object.keys(RTc).forEach(i=>{if(D[i]&&RTc[i].p){RT[i]={p:RTc[i].p,g:decPoly(RTc[i].p),legs:RTc[i].legs};D[i].legs=RTc[i].legs}});
 const zoomCtl=()=>`<div class="zc"><button onclick="zoomBy(1.4)" aria-label="放大">＋</button><button onclick="zoomBy(1/1.4)" aria-label="縮小">－</button><button onclick="zoomReset()" aria-label="重設">⟲</button></div>`;
 function zoomBy(k,fx,fy){const s=document.getElementById('msvg');if(!s||!VB)return;const [x,y,w,h]=VB,ax=fx==null?.5:fx,ay=fy==null?.5:fy,nw=Math.min(Math.max(w/k,VB0[2]/14),VB0[2]*1.8),nh=nw*h/w;VB=[x+(w-nw)*ax,y+(h-nh)*ay,nw,nh];s.setAttribute('viewBox',VB.join(' '))}
 function zoomReset(){const s=document.getElementById('msvg');if(!s)return;VB=VB0;s.setAttribute('viewBox',VB.join(' '))}
@@ -107,8 +108,8 @@ function svgInit(){const s=document.getElementById('msvg');if(!s)return;
 function lmap(){const x=D[cur],el=document.getElementById('mapbox');if(!el)return;let keep=null;
  if(LM){if(LD==cur)keep={c:LM.getCenter(),z:LM.getZoom()};try{LM.remove()}catch(e){}LM=null}
  LM=L.map(el);LD=cur;
- const carto=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd',attribution:'© OpenStreetMap contributors © CARTO'}),osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
- carto.addTo(LM);L.control.layers({'CARTO 淡色':carto,'OpenStreetMap':osm},null,{position:'topleft'}).addTo(LM);
+ const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}),sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'Tiles © Esri'});
+ osm.addTo(LM);L.control.layers({'OpenStreetMap':osm,'衛星':sat},null,{position:'topleft'}).addTo(LM);
  const ll=x.pts.map(p=>[p.la,p.lo]),r=RT[cur];
  L.polyline(r?r.g:ll,{color:'#e8590c',weight:4,opacity:.85,dashArray:r?null:'8 8'}).addTo(LM);
  x.legs.forEach((l,i)=>{const a=ll[i],b=ll[i+1];L.marker([(a[0]+b[0])/2,(a[1]+b[1])/2],{interactive:false,icon:L.divIcon({className:'',html:`<div class="lg">${l[0]}km · ${fmt(l[1])}</div>`,iconSize:[0,0]})}).addTo(LM)});
@@ -117,9 +118,9 @@ function lmap(){const x=D[cur],el=document.getElementById('mapbox');if(!el)retur
  if(keep)LM.setView(keep.c,keep.z);else LM.fitBounds(L.latLngBounds(r?r.g:ll),{padding:[40,40]})}
 function afterDraw(){if(view!=0){if(LM){try{LM.remove()}catch(e){}LM=null}return}window.L?lmap():svgInit()}
 async function loadRoutes(){for(let i=1;i<D.length;i++){if(RT[i])continue;const c=D[i].pts.map(p=>p.lo+','+p.la).join(';');
- try{const j=await(await fetch(`https://router.project-osrm.org/route/v1/driving/${c}?overview=simplified&geometries=geojson`)).json();if(j.code!='Ok')continue;const r=j.routes[0];
-  RT[i]={g:r.geometry.coordinates.map(q=>[q[1],q[0]]),legs:r.legs.map(l=>[Math.round(l.distance/100)/10,Math.round(l.duration/60)])};D[i].legs=RT[i].legs;
-  try{localStorage.setItem('hk28r',JSON.stringify(RT))}catch(e){}view==0?draw():kpi()}catch(e){}
+ try{const j=await(await fetch(`https://router.project-osrm.org/route/v1/driving/${c}?overview=full&geometries=polyline`)).json();if(j.code!='Ok')continue;const r=j.routes[0];
+  RT[i]={p:r.geometry,g:decPoly(r.geometry),legs:r.legs.map(l=>[Math.round(l.distance/100)/10,Math.round(l.duration/60)])};D[i].legs=RT[i].legs;
+  try{localStorage.setItem('hk29r',JSON.stringify(Object.fromEntries(Object.entries(RT).map(([k,v])=>[k,{p:v.p,legs:v.legs}]))))}catch(e){}view==0?draw():kpi()}catch(e){}
  await new Promise(r=>setTimeout(r,1100))}}
 function draw(){
  document.getElementById('n0').classList.toggle('on',view==0);document.getElementById('n1').classList.toggle('on',view==1);
