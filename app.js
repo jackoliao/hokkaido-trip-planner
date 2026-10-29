@@ -2,6 +2,7 @@
 let S={exp:[{id:1,day:1,cat:'住宿',name:'Nexus Hotel Hakodate',amt:88760},{id:2,day:2,cat:'住宿',name:'HOTEL COCOA RESORT',amt:32400}],budget:0,rate:0.21,nid:10};
 try{const r=localStorage.getItem('hk27');if(r)S=JSON.parse(r)}catch(e){}
 const save=()=>{try{localStorage.setItem('hk27',JSON.stringify(S))}catch(e){}};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const pr=(la,lo)=>[(lo-139.6)*73,(46-la)*100],fmt=m=>(m>=60?Math.floor(m/60)+'小時':'')+(m%60?Math.round(m%60)+'分':''),Y=n=>'¥'+Math.round(n).toLocaleString();
 const gm=p=>`https://www.google.com/maps/search/?api=1&query=${p.la},${p.lo}`;
 const dir=(a,b)=>`https://www.google.com/maps/dir/?api=1&origin=${a.la},${a.lo}&destination=${b.la},${b.lo}&travelmode=driving`;
