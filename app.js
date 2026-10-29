@@ -1,13 +1,12 @@
 /* 應用邏輯：地圖繪製、景點詳情、花費管理（資料存於 localStorage） */
 let S={exp:[{id:1,day:1,cat:'住宿',name:'Nexus Hotel Hakodate',amt:88760},{id:2,day:2,cat:'住宿',name:'HOTEL COCOA RESORT',amt:32400}],budget:0,rate:0.21,nid:10};
 try{const r=localStorage.getItem('hk27');if(r)S=JSON.parse(r)}catch(e){}
-const save=()=>{try{localStorage.setItem('hk27',JSON.stringify(S))}catch(e){}};
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const save=()=>{try{localStorage.setItem('hk27',JSON.stringify(S))}catch(e){}ghAuto()};
 const pr=(la,lo)=>[(lo-139.6)*73,(46-la)*100],fmt=m=>(m>=60?Math.floor(m/60)+'小時':'')+(m%60?Math.round(m%60)+'分':''),Y=n=>'¥'+Math.round(n).toLocaleString();
 const gm=p=>`https://www.google.com/maps/search/?api=1&query=${p.la},${p.lo}`;
 const dir=(a,b)=>`https://www.google.com/maps/dir/?api=1&origin=${a.la},${a.lo}&destination=${b.la},${b.lo}&travelmode=driving`;
 const dayDir=pts=>`https://www.google.com/maps/dir/?api=1&origin=${pts[0].la},${pts[0].lo}&destination=${pts.at(-1).la},${pts.at(-1).lo}&travelmode=driving`+(pts.length>2?`&waypoints=${pts.slice(1,-1).map(p=>p.la+','+p.lo).join('%7C')}`:'');
-let view=1,cur=1,hi=-1;
+let view=0,cur=1,hi=-1;
 const tabs=document.getElementById('tabs'),main=document.getElementById('main');
 D.forEach((x,i)=>{const b=document.createElement('button');b.textContent=x.d;b.onclick=()=>{cur=i;hi=-1;view=0;draw()};tabs.appendChild(b)});
 const tw=e=>e.cur=='TWD'?e.orig:Math.round(e.amt*S.rate),W=n=>'NT$ '+Math.round(n).toLocaleString(),tot=()=>S.exp.reduce((a,e)=>a+tw(e),0),dsum=i=>S.exp.filter(e=>e.day==i).reduce((a,e)=>a+tw(e),0);
@@ -35,9 +34,6 @@ const attHtml=e=>{const L=(A[e.id]||[]).map((a,i)=>a.t=='application/pdf'?`<span
 const editExtra=e=>`<div class="f" style="width:100%;align-items:center"><label class="mu" style="flex:none"><input type="checkbox" id="xs"${e.split?' checked':''} style="flex:none"> 平分</label><input id="xp" type="number" min="2" value="${e.n||2}" placeholder="人數"><input id="xf" type="file" accept="image/*,application/pdf" multiple><button class="btn o" onclick="recog('xf','xa','xk','xn')">🔍 辨識金額</button></div><div class="f" style="width:100%">${(A[e.id]||[]).map((a,i)=>`<span class="tag">${a.n} <button class="x" onclick="rmA(${e.id},${i})">✕</button></span>`).join('')}</div>`;
 const splitCard=()=>{const L=S.exp.filter(e=>e.split);if(!L.length)return '';const sh=L.reduce((a,e)=>a+tw(e)/e.n,0);return `<div class="card"><h2>👥 平分明細</h2>${L.map(e=>`<div class="row"><span>${e.name} <span class="mu">÷${e.n}</span></span><span>${W(tw(e))} → <b>${W(tw(e)/e.n)}</b>/人</span></div>`).join('')}<div class="row"><b>每人分攤合計</b><b>${W(sh)}</b></div><div class="mu">若各筆平分人數不同，合計為逐筆每人金額的加總。</div></div>`};
 let editId=-1;
-let expenseFilter={q:'',cat:'',day:'',split:'all'};
-function setExpenseFilter(k,v){expenseFilter[k]=v;draw()}
-function resetExpenseFilter(){expenseFilter={q:'',cat:'',day:'',split:'all'};draw()}
 const editRow=e=>{const c=e.cur||'JPY',v=c=='TWD'?e.orig:e.amt;return `<div class="row" style="flex-wrap:wrap"><div class="f" style="width:100%"><input id="xn" value="${e.name.replace(/"/g,'&quot;')}"><select id="xd">${D.slice(1).map((d,i)=>`<option value="${i+1}"${i+1==e.day?' selected':''}>${d.d}</option>`).join('')}</select><select id="xc">${CATS.map(k=>`<option${k==e.cat?' selected':''}>${k}</option>`).join('')}</select></div>${editExtra(e)}<div class="f" style="width:100%"><input id="xa" type="number" inputmode="numeric" value="${v}"><select id="xk"><option value="JPY"${c=='JPY'?' selected':''}>¥ 日幣</option><option value="TWD"${c=='TWD'?' selected':''}>NT$ 台幣</option></select><button class="btn" onclick="saveE(${e.id})">儲存</button><button class="btn o" onclick="editId=-1;draw()">取消</button></div></div>`};
 async function saveE(id){const e=S.exp.find(x=>x.id==id),v=+document.getElementById('xa').value;if(!e||!v)return;const g=k=>document.getElementById(k),c=g('xk').value;Object.assign(e,{name:g('xn').value||e.name,day:+g('xd').value,cat:g('xc').value,cur:c,orig:v,amt:c=='TWD'?Math.round(v/S.rate):v});if(g('xs').checked){e.split=1;e.n=Math.max(2,+g('xp').value||2)}else{delete e.split;delete e.n}if(g('xf').files.length)await attach(id,g('xf').files);save();editId=-1;draw()}
 const curSel=id=>`<select id="${id}c" onchange="S.cur=this.value;save()"><option value="JPY"${S.cur!='TWD'?' selected':''}>¥ 日幣</option><option value="TWD"${S.cur=='TWD'?' selected':''}>NT$ 台幣</option></select>`;
@@ -82,7 +78,7 @@ function reportBody(){
  const split=S.exp.filter(e=>e.split);
  const sp=split.length?`<h3>平分明細</h3><table><tr><th>項目</th><th class="r">總額</th><th>人數</th><th class="r">每人</th></tr>${split.map(e=>`<tr><td>${esc(e.name)}</td><td class="r">${W(tw(e))}</td><td>${e.n}</td><td class="r">${W(tw(e)/e.n)}</td></tr>`).join('')}<tr><td colspan="3"><b>每人分攤合計</b></td><td class="r"><b>${W(split.reduce((a,e)=>a+tw(e)/e.n,0))}</b></td></tr></table>`:'';
  const pics=S.exp.filter(e=>(A[e.id]||[]).some(a=>a.t!='application/pdf')).map(e=>`<div class="ap"><div class="mu">${esc(D[e.day]?D[e.day].d:'')} · ${esc(e.name)} · ${W(tw(e))}</div>${A[e.id].filter(a=>a.t!='application/pdf').map(a=>`<img src="${a.d}" alt="">`).join('')}</div>`).join('');
- return `<h1>🚗 北海道 8天7夜自駕花費明細</h1><div class="s">2027/6/30 – 7/7 ・ 以台幣計價（日幣依匯率 ${S.rate} 換算）</div><p class="t">總計：${W(T)}（約 ${Y(T/S.rate)}）${bud?` ・ 預算 ${W(bud)}，剩餘 ${W(bud-T)}`:''}</p><h3>分類</h3><table><tr><th>分類</th><th class="r">金額（NT$）</th></tr>${cats}</table><h3>明細</h3><table><tr><th>日期</th><th>項目</th><th>分類</th><th class="r">台幣</th><th class="r">原始日幣</th><th>平分</th><th>附件</th></tr>${rows||'<tr><td colspan="7">尚無紀錄</td></tr>'}</table>${sp}${pics?'<h3>收據附件</h3>'+pics:''}`}
+ return `<h1>🚗 北海道 8天7夜自駕花費明細</h1><div class="s">2027/6/30 – 7/7 ・ 以台幣計價（日幣依匯率 ${S.rate} 換算）</div><p class="t">總計：${W(T)}（約 ${Y(T/S.rate)}）${bud?` ・ 預算 ${W(bud)}，剩餘 ${W(bud-T)}`:''}</p><h3>分類</h3><table><tr><th>分類</th><th class="r">金額（NT$）</th></tr>${cats}</table><h3>費用總表</h3>${matStatic()}<h3>明細</h3><table><tr><th>日期</th><th>項目</th><th>分類</th><th class="r">台幣</th><th class="r">原始日幣</th><th>平分</th><th>附件</th></tr>${rows||'<tr><td colspan="7">尚無紀錄</td></tr>'}</table>${sp}${pics?'<h3>收據附件</h3>'+pics:''}`}
 function exportRep(){
  const html=`<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><title>北海道自駕花費明細</title><style>${RCSS}body{margin:24px}</style></head><body>${reportBody()}<button class="btn" onclick="print()">列印／存成 PDF</button><script>addEventListener('load',()=>setTimeout(()=>{try{print()}catch(e){}},400))<\/script></body></html>`;
  const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));
@@ -140,27 +136,69 @@ function trip(){const x=D[cur],[tk,tm]=sum(x);
 function rowHtml(e){const d=D[e.day]?D[e.day].d.split(' ')[0]:'';
  return `<tr><td>${d}</td><td><b>${e.name}</b>${attHtml(e)}</td><td><span class="tag">${e.cat}</span></td><td class="rr"><b>${W(tw(e))}</b></td><td class="rr mu">${e.cur!='TWD'?Y(e.amt):'—'}</td><td>${e.split?`÷${e.n}<br><b>${W(tw(e)/e.n)}</b> /人`:''}</td><td class="rr"><button class="x" onclick="editId=${e.id};draw()">✏️</button><button class="x" onclick="delE(${e.id})">🗑</button></td></tr>`}
 function addRow(){const n=document.getElementById('en').value||document.getElementById('ec').value;addE(+document.getElementById('ed').value,document.getElementById('ec').value,n,'ea')}
-function cost(){
- const T=tot(),bud=+S.budget||0,splitItems=S.exp.filter(e=>e.split),sh=splitItems.reduce((a,e)=>a+tw(e)/Math.max(2,+e.n||2),0);
- const splitTotal=splitItems.reduce((a,e)=>a+tw(e),0),avgDay=T/Math.max(1,D.length-1);
+function matSum(i,c){return S.exp.filter(e=>e.day==i+1&&e.cat==c).reduce((a,e)=>a+tw(e),0)}
+function matCell(day,cat,val){const v=Math.round(+val||0),L=S.exp.filter(e=>e.day==day&&e.cat==cat);
+ if(L.length>1){draw();return}
+ if(!L.length){if(v>0){S.exp.push({id:S.nid++,day,cat,name:cat+'（總表）',amt:Math.round(v/S.rate),cur:'TWD',orig:v});save()}}
+ else{const e=L[0];if(v<=0){if(confirm('清除這筆花費「'+e.name+'」？')){S.exp=S.exp.filter(x=>x!=e);delete A[e.id];saveA();save()}}else{e.cur='TWD';e.orig=v;e.amt=Math.round(v/S.rate);save()}}
+ draw()}
+function matrix(){const days=D.slice(1);
+ const cell=(i,c)=>{const L=S.exp.filter(e=>e.day==i+1&&e.cat==c),v=matSum(i,c);return `<td class="rr"><input class="mc" type="number" inputmode="numeric" value="${v||''}" placeholder="0" ${L.length>1?`readonly title="${L.length} 筆，請於下方清單編輯"`:''} onchange="matCell(${i+1},'${c}',this.value)">${L.length>1?`<div class="mu">${L.length} 筆</div>`:''}</td>`};
+ const body=days.map((d,i)=>`<tr><td><b>${d.d.split(' ')[0]}</b><div class="mu">${d.t}</div></td>${CATS.map(c=>cell(i,c)).join('')}<td class="rr"><b>${W(dsum(i+1))}</b></td></tr>`).join('');
+ const foot=`<tr><td>合計</td>${CATS.map(c=>`<td class="rr">${W(days.reduce((a,_,i)=>a+matSum(i,c),0))}</td>`).join('')}<td class="rr">${W(tot())}</td></tr>`;
+ return `<div class="card"><h2>📊 費用總表</h2><div class="mu">天 × 分類。點格子可直接修改金額（台幣）；空白格輸入金額會新增一筆，改成 0 會刪除。同一格有多筆時，請在下方清單編輯。</div><div class="wrap" style="margin-top:8px"><table class="tb mt"><thead><tr><th>日期</th>${CATS.map(c=>`<th class="rr">${c}</th>`).join('')}<th class="rr">小計</th></tr></thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div></div>`}
+function matStatic(){const days=D.slice(1);
+ return `<table><tr><th>日期</th>${CATS.map(c=>`<th class="r">${c}</th>`).join('')}<th class="r">小計</th></tr>${days.map((d,i)=>`<tr><td>${d.d.split(' ')[0]}</td>${CATS.map(c=>`<td class="r">${matSum(i,c)?W(matSum(i,c)):''}</td>`).join('')}<td class="r"><b>${W(dsum(i+1))}</b></td></tr>`).join('')}<tr><td><b>合計</b></td>${CATS.map(c=>`<td class="r"><b>${W(days.reduce((a,_,i)=>a+matSum(i,c),0))}</b></td>`).join('')}<td class="r"><b>${W(tot())}</b></td></tr></table>`}
+function exportBackup(){const d=new Date(),n=`hokkaido-backup-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.json`;
+ const u=URL.createObjectURL(new Blob([JSON.stringify({app:'hokkaido-trip-planner',v:1,saved:d.toISOString(),S,A})],{type:'application/json'})),a=document.createElement('a');a.href=u;a.download=n;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)}
+async function importBackup(inp){const f=inp.files[0];if(!f)return;
+ try{const j=JSON.parse(await f.text());if(j.app!='hokkaido-trip-planner'||!j.S||!Array.isArray(j.S.exp))throw 0;
+  if(!confirm('匯入會覆蓋目前的花費與附件（備份內共 '+j.S.exp.length+' 筆）。確定嗎？'))return;
+  S=Object.assign({budget:0,rate:0.21},j.S);S.nid=Math.max(S.nid||10,...S.exp.map(e=>e.id+1));A=j.A||{};save();saveA();editId=-1;draw();alert('已匯入 '+S.exp.length+' 筆花費')}
+ catch(e){alert('備份檔格式不正確，無法匯入。')}finally{inp.value=''}}
+let GH=Object.assign({owner:'jackoliao',repo:'hokkaido-trip-planner',branch:'main',path:'expenses.json',token:'',auto:false},(()=>{try{return JSON.parse(localStorage.getItem('hk27g')||'{}')}catch(e){return{}}})()),GHS='',ghT=null,ghMute=false,ghLastA='';
+const ghSave=()=>{try{localStorage.setItem('hk27g',JSON.stringify(GH))}catch(e){}};
+const ghUrl=p=>`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${p.split('/').map(encodeURIComponent).join('/')}`;
+const ghH=raw=>({Authorization:'Bearer '+GH.token,Accept:raw?'application/vnd.github.raw+json':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'});
+const b64=s=>{const b=new TextEncoder().encode(s);let r='';for(let i=0;i<b.length;i+=0x8000)r+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));return btoa(r)};
+const attPath=()=>GH.path.replace(/\.json$/,'')+'-attachments.json';
+function ghStatus(m){GHS=m;const el=document.getElementById('ghs');if(el)el.textContent=m}
+async function ghErr(r){let m='';try{m=(await r.json()).message}catch(e){}return r.status+(m?' '+m:'')+(r.status==401?'（token 無效或已過期）':r.status==403?'（權限不足或請求過多）':r.status==404?'（找不到 repository／檔案，或 token 無權存取）':'')}
+async function ghPut(path,text,msg){let sha;const g=await fetch(ghUrl(path)+'?ref='+encodeURIComponent(GH.branch),{headers:ghH()});
+ if(g.ok)sha=(await g.json()).sha;else if(g.status!=404)throw new Error(await ghErr(g));
+ const r=await fetch(ghUrl(path),{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},ghH()),body:JSON.stringify({message:msg,content:b64(text),branch:GH.branch,sha})});
+ if(!r.ok)throw new Error(await ghErr(r))}
+async function ghPush(){if(!GH.token){ghStatus('請先填寫 token');return}
+ ghStatus('儲存中…');
+ try{await ghPut(GH.path,JSON.stringify({app:'hokkaido-trip-planner',v:1,saved:new Date().toISOString(),S}),'Update expenses');
+  const a=JSON.stringify(A);if(Object.keys(A).length&&a!==ghLastA){await ghPut(attPath(),a,'Update attachments');ghLastA=a}
+  ghStatus('✓ 已儲存到 GitHub（'+new Date().toLocaleTimeString()+'）')}
+ catch(e){ghStatus('✗ 儲存失敗：'+(e.message||e))}}
+async function ghPull(){if(!GH.token){ghStatus('請先填寫 token');return}
+ ghStatus('載入中…');
+ try{const r=await fetch(ghUrl(GH.path)+'?ref='+encodeURIComponent(GH.branch),{headers:ghH(true)});if(!r.ok)throw new Error(await ghErr(r));
+  const j=JSON.parse(await r.text());if(!j.S||!Array.isArray(j.S.exp))throw new Error('檔案格式不正確');
+  if(!confirm('載入會覆蓋這台裝置上的花費（GitHub 上共 '+j.S.exp.length+' 筆）。確定嗎？')){ghStatus('已取消');return}
+  const ra=await fetch(ghUrl(attPath())+'?ref='+encodeURIComponent(GH.branch),{headers:ghH(true)});
+  S=Object.assign({budget:0,rate:0.21},j.S);S.nid=Math.max(S.nid||10,...S.exp.map(e=>e.id+1));A=ra.ok?JSON.parse(await ra.text()):{};
+  ghMute=true;save();saveA();ghMute=false;editId=-1;draw();ghStatus('✓ 已從 GitHub 載入 '+S.exp.length+' 筆')}
+ catch(e){ghMute=false;ghStatus('✗ 載入失敗：'+(e.message||e))}}
+function ghAuto(){if(!GH.auto||!GH.token||ghMute)return;clearTimeout(ghT);ghT=setTimeout(ghPush,2500)}
+const ghField=(k,l,t)=>`<label class="mu">${l}<input type="${t||'text'}" value="${GH[k]}" autocomplete="off" onchange="GH.${k}=this.value.trim();ghSave()"></label>`;
+const ghCard=()=>`<div class="card"><h2>☁️ GitHub 同步</h2><div class="mu">把花費存成 repository 根目錄的 <b>${GH.path}</b>（有附件時另存 ${attPath()}）。<b style="color:#e03131">⚠️ 公開 repository 裡的檔案，任何人都看得到。</b></div><div class="f">${ghField('owner','帳號')}${ghField('repo','Repository')}</div><div class="f">${ghField('branch','分支')}${ghField('path','檔名')}</div><div class="f">${ghField('token','存取權杖（token，只存在這個瀏覽器）','password')}</div><div class="f" style="align-items:center"><label class="mu" style="flex:none"><input type="checkbox" ${GH.auto?'checked':''} style="flex:none" onchange="GH.auto=this.checked;ghSave()"> 修改後自動儲存</label></div><div class="f"><button class="btn" onclick="ghPush()">☁️ 儲存到 GitHub</button><button class="btn o" onclick="ghPull()">⬇️ 從 GitHub 載入</button></div><div class="mu" id="ghs">${GHS}</div><details class="mu" style="margin-top:6px"><summary>如何取得 token</summary><ol style="padding-left:18px;margin:6px 0"><li>GitHub 右上角頭像 → Settings → Developer settings</li><li>Personal access tokens → Fine-grained tokens → Generate new token</li><li>Repository access 選 Only select repositories，只勾這個 repository</li><li>Permissions → Repository permissions → Contents 選 Read and write</li><li>Generate token，複製後貼到上方欄位（只會顯示一次）</li></ol>請勿在共用裝置使用；token 外洩時請到 GitHub 立即撤銷。</details></div>`;
+function cost(){const T=tot(),bud=+S.budget||0,sh=S.exp.filter(e=>e.split).reduce((a,e)=>a+tw(e)/e.n,0);
  const by=CATS.map(c=>S.exp.filter(e=>e.cat==c).reduce((a,e)=>a+tw(e),0));
  const days=D.slice(1).map((d,i)=>{const L=S.exp.filter(e=>e.day==i+1);return `<tr><td>${d.d}</td><td class="rr">${L.length} 筆</td><td class="rr"><b>${W(dsum(i+1))}</b></td></tr>`}).join('');
- const cats=CATS.map((c,i)=>by[i]?`<div style="margin-top:6px"><div class="row" style="border:0;padding:0"><span>${c}</span><span>${W(by[i])} <span class="mu">(${T?(by[i]/T*100).toFixed(1):0}%)</span></span></div><div class="bar"><i style="width:${T?by[i]/T*100:0}%;background:${CC[i]}"></i></div></div>`:'').join('')||'<div class="mu">尚無紀錄</div>';
- const allSorted=S.exp.slice().sort((a,b)=>a.day-b.day||a.id-b.id);
- const visible=allSorted.filter(e=>{const q=expenseFilter.q.trim().toLowerCase();return (!q||String(e.name||'').toLowerCase().includes(q)||String(e.cat||'').toLowerCase().includes(q))&&(!expenseFilter.cat||e.cat===expenseFilter.cat)&&(!expenseFilter.day||String(e.day)===expenseFilter.day)&&(expenseFilter.split==='all'||(expenseFilter.split==='split'?!!e.split:!e.split))});
- const rows=visible.map(e=>editId==e.id?`<tr><td colspan="7">${editRow(e)}</td></tr>`:rowHtml(e)).join('');
- const add=`<tr class="addrow"><td><select id="ed">${D.slice(1).map((d,i)=>`<option value="${i+1}">${d.d.split(' ')[0]}</option>`).join('')}</select></td><td><input id="en" placeholder="項目"></td><td><select id="ec">${CATS.map(c=>`<option>${c}</option>`).join('')}</select></td><td colspan="2"><div class="f" style="flex-wrap:nowrap"><input id="ea" type="number" min="0" step="any" inputmode="decimal" placeholder="金額">${curSel('ea')}</div></td><td><label class="mu"><input type="checkbox" id="eas"> 平分</label> <input id="ean" type="number" min="2" value="2" style="width:56px" aria-label="平分人數"></td><td class="rr"><input id="eaf" type="file" accept="image/*,application/pdf" multiple style="max-width:120px"><div class="f" style="flex-wrap:nowrap;justify-content:flex-end"><button class="btn o" onclick="recog('eaf','ea','eac','en')">🔍</button><button class="btn" onclick="addRow()">＋ 新增</button></div></td></tr>`;
+ const cats=CATS.map((c,i)=>by[i]?`<div style="margin-top:6px"><div class="row" style="border:0;padding:0"><span>${c}</span><span>${W(by[i])}</span></div><div class="bar"><i style="width:${T?by[i]/T*100:0}%;background:${CC[i]}"></i></div></div>`:'').join('')||'<div class="mu">尚無紀錄</div>';
+ const rows=S.exp.slice().sort((a,b)=>a.day-b.day||a.id-b.id).map(e=>editId==e.id?`<tr><td colspan="7">${editRow(e)}</td></tr>`:rowHtml(e)).join('');
+ const add=`<tr class="addrow"><td><select id="ed">${D.slice(1).map((d,i)=>`<option value="${i+1}">${d.d.split(' ')[0]}</option>`).join('')}</select></td><td><input id="en" placeholder="項目"></td><td><select id="ec">${CATS.map(c=>`<option>${c}</option>`).join('')}</select></td><td colspan="2"><div class="f" style="flex-wrap:nowrap"><input id="ea" type="number" inputmode="numeric" placeholder="金額">${curSel('ea')}</div></td><td><label class="mu"><input type="checkbox" id="eas"> 平分</label> <input id="ean" type="number" min="2" value="2" style="width:56px"></td><td class="rr"><input id="eaf" type="file" accept="image/*,application/pdf" multiple style="max-width:120px"><div class="f" style="flex-wrap:nowrap;justify-content:flex-end"><button class="btn o" onclick="recog('eaf','ea','eac','en')">🔍</button><button class="btn" onclick="addRow()">＋ 新增</button></div></td></tr>`;
  return `<div class="cw" style="grid-column:1/-1">
- <div class="card"><h2>💴 花費總覽</h2><div class="mu">所有金額統一換算為新台幣；日幣換算依下方匯率。</div>
-  <div class="stat overview-stat"><div><b>${W(T)}</b>累計花費</div><div><b>${S.exp.length}</b>總筆數</div><div><b>${W(avgDay)}</b>每日平均</div><div><b>${W(bud?bud-T:0)}</b>${bud?'預算剩餘':'尚未設定預算'}</div><div><b>${W(sh)}</b>每人平分合計</div></div>
-  <div class="f"><label class="mu">總預算（NT$）<input type="number" min="0" inputmode="numeric" value="${bud||''}" onchange="S.budget=Math.max(0,+this.value||0);save();draw()"></label><label class="mu">匯率（JPY→TWD）<input type="number" min="0.001" step="0.001" value="${S.rate}" onchange="S.rate=Math.max(0.001,+this.value||0.21);save();draw()"></label></div>${bud?hint(T,bud):''}
-  <div class="two"><div><h3 class="sh">📊 分類花費分析</h3>${cats}</div><div><h3 class="sh">📅 每日花費分析</h3><table class="tb"><tbody>${days}</tbody></table></div></div>
-  <div class="split-overview"><h3 class="sh">👥 平分項目總覽</h3><div class="row"><span>已標記平分</span><b>${splitItems.length} 筆 · ${W(splitTotal)}</b></div><div class="row"><span>每人分攤合計（逐筆加總）</span><b>${W(sh)}</b></div>${splitItems.length?`<div class="split-list">${splitItems.map(e=>`<div class="row"><span>${esc(e.name)} <span class="mu">÷ ${Math.max(2,+e.n||2)} 人</span></span><span>${W(tw(e))} → <b>${W(tw(e)/Math.max(2,+e.n||2))}/人</b></span></div>`).join('')}</div>`:'<div class="mu">目前沒有平分項目；新增或編輯明細時勾選「平分」即可。</div>'}</div>
+ <div class="card"><h2>💴 花費摘要</h2>
+  <div class="stat"><div><b>${W(T)}</b>台幣合計</div><div><b>${Y(T/S.rate)}</b>約合日幣</div><div><b>${bud?W(bud-T):'—'}</b>預算剩餘</div><div><b>${S.exp.length}</b>筆數</div><div><b>${W(sh)}</b>平分每人合計</div></div>
+  <div class="f"><label class="mu">預算（NT$）<input type="number" inputmode="numeric" value="${bud||''}" onchange="S.budget=+this.value;save();draw()"></label><label class="mu">匯率（JPY→TWD）<input type="number" step="0.001" value="${S.rate}" onchange="S.rate=+this.value||0.21;save();draw()"></label></div>${bud?hint(T,bud):''}
+  <div class="f"><button class="btn" onclick="exportPDF()">⬇️ 全部明細轉 PDF</button><button class="btn o" onclick="exportRep()">🖨 列印／報表</button></div><div class="f"><button class="btn o" onclick="exportBackup()">💾 匯出備份</button><label class="btn o" style="cursor:pointer;text-align:center">📂 匯入備份<input type="file" accept=".json,application/json" hidden onchange="importBackup(this)"></label></div><div class="mu">資料只存在這個瀏覽器；請定期匯出備份（含附件），換裝置或清除資料前務必先備份。</div><div class="two"><div><h3 class="sh">分類占比</h3>${cats}</div><div><h3 class="sh">每日小計</h3><table class="tb"><tbody>${days}</tbody></table></div></div>
  </div>
- <div class="card"><h2>🧾 花費明細與管理</h2><div class="mu">可新增、修改、刪除每筆花費；新增或修改時可單獨指定是否平分及平分人數。</div>
- <div class="expense-filters"><input aria-label="搜尋花費項目" placeholder="搜尋項目／分類…" value="${esc(expenseFilter.q)}" onchange="setExpenseFilter('q',this.value)"><select aria-label="依分類篩選" onchange="setExpenseFilter('cat',this.value)"><option value="">全部分類</option>${CATS.map(c=>`<option value="${c}"${expenseFilter.cat===c?' selected':''}>${c}</option>`).join('')}</select><select aria-label="依日期篩選" onchange="setExpenseFilter('day',this.value)"><option value="">全部日期</option>${D.slice(1).map((d,i)=>`<option value="${i+1}"${expenseFilter.day===String(i+1)?' selected':''}>${d.d}</option>`).join('')}</select><select aria-label="平分狀態篩選" onchange="setExpenseFilter('split',this.value)"><option value="all"${expenseFilter.split==='all'?' selected':''}>全部項目</option><option value="split"${expenseFilter.split==='split'?' selected':''}>只看平分</option><option value="no"${expenseFilter.split==='no'?' selected':''}>不平分</option></select><button class="btn o" onclick="resetExpenseFilter()">清除篩選</button></div>
- <div class="filter-result mu">顯示 ${visible.length} / ${S.exp.length} 筆；目前清單合計：<b>${W(visible.reduce((a,e)=>a+tw(e),0))}</b></div>
- <div class="wrap"><table class="tb"><thead><tr><th>日期</th><th>項目</th><th>分類</th><th class="rr">台幣</th><th class="rr">原始</th><th>平分</th><th class="rr">操作</th></tr></thead><tbody>${add}${rows||`<tr><td colspan="7" class="mu">${S.exp.length?'沒有符合篩選條件的花費':'尚無紀錄，請於上方新增'}</td></tr>`}</tbody></table></div></div>
+ ${matrix()}<div class="card"><h2>🧾 花費清單</h2><div class="wrap"><table class="tb"><thead><tr><th>日期</th><th>項目</th><th>分類</th><th class="rr">台幣</th><th class="rr">原始</th><th>平分</th><th class="rr">操作</th></tr></thead><tbody>${add}${rows||'<tr><td colspan="7" class="mu">尚無紀錄，請於上方新增</td></tr>'}</tbody></table></div></div>${ghCard()}
  </div>`}
 function hint(T,bud){return `<div class="bar"><i style="width:${Math.min(100,T/bud*100)}%;background:${T>bud?'#e03131':'var(--ac)'}"></i></div>`}
 
