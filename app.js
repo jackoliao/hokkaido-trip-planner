@@ -26,7 +26,7 @@ async function pack(f){const u=await rd(f);if(!u)return null;
  if(f.type.startsWith('image/'))return new Promise(r=>{const im=new Image();im.onload=()=>{const k=Math.min(1,1000/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);r({n:f.name,t:'image/jpeg',d:c.toDataURL('image/jpeg',.7)})};im.onerror=()=>r(null);im.src=u});
  if(f.type=='application/pdf'&&f.size<600000)return{n:f.name,t:f.type,d:u};alert('「'+f.name+'」未加入：僅支援圖片，或 600KB 以內的 PDF。');return null}
 async function attach(id,files){const add=[];for(const f of files){const p=await pack(f);if(p)add.push(p)}if(!add.length)return;const old=A[id];A[id]=(old||[]).concat(add);if(!saveA())A[id]=old}
-function rmA(id,i){A[id].splice(i,1);if(!A[id].length)delete A[id];saveA();draw()}
+function rmA(id,i){A[id].splice(i,1);if(!A[id].length)delete A[id];saveA();save();draw()}
 function viewA(id,i){const a=A[id][i];if(a.t=='application/pdf'){const b=atob(a.d.split(',')[1]),u=new Uint8Array(b.length);for(let k=0;k<b.length;k++)u[k]=b.charCodeAt(k);window.open(URL.createObjectURL(new Blob([u],{type:a.t})));return}
  document.getElementById('sheet').innerHTML=`<button class="close" onclick="closeS()">✕</button><img src="${a.d}" alt="" style="width:100%;display:block;border-radius:22px 22px 0 0"><div class="bd mu">${a.n}</div>`;document.getElementById('shade').classList.add('on')}
 const attHtml=e=>{const L=(A[e.id]||[]).map((a,i)=>a.t=='application/pdf'?`<span class="tag" style="cursor:pointer" onclick="viewA(${e.id},${i})">📄 ${a.n}</span>`:`<img src="${a.d}" alt="" onclick="viewA(${e.id},${i})" style="width:44px;height:44px;object-fit:cover;border-radius:8px;cursor:pointer">`).join('');
@@ -172,7 +172,7 @@ async function ghPush(){if(!GH.token){ghStatus('請先填寫 token');return}
  ghStatus('儲存中…');
  try{await ghPut(GH.path,JSON.stringify({app:'hokkaido-trip-planner',v:1,saved:new Date().toISOString(),S}),'Update expenses');
   const a=JSON.stringify(A);if(Object.keys(A).length&&a!==ghLastA){await ghPut(attPath(),a,'Update attachments');ghLastA=a}
-  ghStatus('✓ 已儲存到 GitHub（'+new Date().toLocaleTimeString()+'）')}
+  try{localStorage.removeItem('hk27d')}catch(e){}ghStatus('✓ 已同時儲存到本機與根目錄 '+GH.path+'（'+new Date().toLocaleTimeString()+'）')}
  catch(e){ghStatus('✗ 儲存失敗：'+(e.message||e))}}
 async function ghPull(){if(!GH.token){ghStatus('請先填寫 token');return}
  ghStatus('載入中…');
@@ -181,11 +181,27 @@ async function ghPull(){if(!GH.token){ghStatus('請先填寫 token');return}
   if(!confirm('載入會覆蓋這台裝置上的花費（GitHub 上共 '+j.S.exp.length+' 筆）。確定嗎？')){ghStatus('已取消');return}
   const ra=await fetch(ghUrl(attPath())+'?ref='+encodeURIComponent(GH.branch),{headers:ghH(true)});
   S=Object.assign({budget:0,rate:0.21},j.S);S.nid=Math.max(S.nid||10,...S.exp.map(e=>e.id+1));A=ra.ok?JSON.parse(await ra.text()):{};
-  ghMute=true;save();saveA();ghMute=false;editId=-1;draw();ghStatus('✓ 已從 GitHub 載入 '+S.exp.length+' 筆')}
+  ghMute=true;save();saveA();ghMute=false;try{localStorage.removeItem('hk27d')}catch(e){}editId=-1;draw();ghStatus('✓ 已從 GitHub 載入 '+S.exp.length+' 筆')}
  catch(e){ghMute=false;ghStatus('✗ 載入失敗：'+(e.message||e))}}
-function ghAuto(){if(!GH.auto||!GH.token||ghMute)return;clearTimeout(ghT);ghT=setTimeout(ghPush,2500)}
+function ghAuto(){if(ghMute)return;try{localStorage.setItem('hk27d','1')}catch(e){}
+ if(!GH.token){ghStatus('僅存本機（未設定 token，尚未寫入根目錄 '+GH.path+'）');return}
+ clearTimeout(ghT);ghT=setTimeout(ghPush,2500)}
+let booted=false;
+async function loadRoot(){try{
+ const q='?ref='+encodeURIComponent(GH.branch),T=GH.token;let r,ra=null;
+ r=T?await fetch(ghUrl(GH.path)+q,{headers:ghH(true),cache:'no-store'}):await fetch(GH.path+'?t='+Date.now(),{cache:'no-store'});
+ if(!r.ok)throw 0;const j=JSON.parse(await r.text());if(!j.S||!Array.isArray(j.S.exp))throw 0;
+ try{ra=T?await fetch(ghUrl(attPath())+q,{headers:ghH(true),cache:'no-store'}):await fetch(attPath()+'?t='+Date.now(),{cache:'no-store'})}catch(e){}
+ const nA=ra&&ra.ok?JSON.parse(await ra.text()):A;
+ S=Object.assign({budget:0,rate:0.21},j.S);S.nid=Math.max(S.nid||10,...S.exp.map(e=>e.id+1));A=nA;
+ ghMute=true;save();saveA();ghMute=false;ghStatus('✓ 已從根目錄 '+GH.path+' 載入（'+S.exp.length+' 筆）');if(booted)draw();return true}
+ catch(e){ghMute=false;ghStatus('根目錄 '+GH.path+' 讀取失敗，改用本機資料');return false}}
+async function boot(){main.innerHTML='<div class="mu" style="padding:24px">載入資料中…</div>';
+ let dirty=null;try{dirty=localStorage.getItem('hk27d')}catch(e){}
+ if(dirty){ghStatus('有尚未同步的本機變更，已沿用本機資料'+(GH.token?'，正在同步到根目錄…':'（未設定 token，無法寫入根目錄）'));booted=true;draw();if(window.L)loadRoutes();if(GH.token)ghPush();return}
+ await Promise.race([loadRoot(),new Promise(r=>setTimeout(r,6000))]);booted=true;draw();if(window.L)loadRoutes()}
 const ghField=(k,l,t)=>`<label class="mu">${l}<input type="${t||'text'}" value="${GH[k]}" autocomplete="off" onchange="GH.${k}=this.value.trim();ghSave()"></label>`;
-const ghCard=()=>`<div class="card"><h2>☁️ GitHub 同步</h2><div class="mu">把花費存成 repository 根目錄的 <b>${GH.path}</b>（有附件時另存 ${attPath()}）。<b style="color:#e03131">⚠️ 公開 repository 裡的檔案，任何人都看得到。</b></div><div class="f">${ghField('owner','帳號')}${ghField('repo','Repository')}</div><div class="f">${ghField('branch','分支')}${ghField('path','檔名')}</div><div class="f">${ghField('token','存取權杖（token，只存在這個瀏覽器）','password')}</div><div class="f" style="align-items:center"><label class="mu" style="flex:none"><input type="checkbox" ${GH.auto?'checked':''} style="flex:none" onchange="GH.auto=this.checked;ghSave()"> 修改後自動儲存</label></div><div class="f"><button class="btn" onclick="ghPush()">☁️ 儲存到 GitHub</button><button class="btn o" onclick="ghPull()">⬇️ 從 GitHub 載入</button></div><div class="mu" id="ghs">${GHS}</div><details class="mu" style="margin-top:6px"><summary>如何取得 token</summary><ol style="padding-left:18px;margin:6px 0"><li>GitHub 右上角頭像 → Settings → Developer settings</li><li>Personal access tokens → Fine-grained tokens → Generate new token</li><li>Repository access 選 Only select repositories，只勾這個 repository</li><li>Permissions → Repository permissions → Contents 選 Read and write</li><li>Generate token，複製後貼到上方欄位（只會顯示一次）</li></ol>請勿在共用裝置使用；token 外洩時請到 GitHub 立即撤銷。</details></div>`;
+const ghCard=()=>`<div class="card"><h2>☁️ GitHub 同步</h2><div class="mu">把花費存成 repository 根目錄的 <b>${GH.path}</b>（有附件時另存 ${attPath()}）。<b style="color:#e03131">⚠️ 公開 repository 裡的檔案，任何人都看得到。</b></div><div class="f">${ghField('owner','帳號')}${ghField('repo','Repository')}</div><div class="f">${ghField('branch','分支')}${ghField('path','檔名')}</div><div class="f">${ghField('token','存取權杖（token，只存在這個瀏覽器）','password')}</div><div class="mu">每次修改會同時存到本機與根目錄 expenses.json（需填寫 token）。開啟網站時會先讀根目錄，讀不到才使用本機資料。</div><div class="f"><button class="btn" onclick="ghPush()">☁️ 儲存到 GitHub</button><button class="btn o" onclick="ghPull()">⬇️ 從 GitHub 載入</button></div><div class="mu" id="ghs">${GHS}</div><details class="mu" style="margin-top:6px"><summary>如何取得 token</summary><ol style="padding-left:18px;margin:6px 0"><li>GitHub 右上角頭像 → Settings → Developer settings</li><li>Personal access tokens → Fine-grained tokens → Generate new token</li><li>Repository access 選 Only select repositories，只勾這個 repository</li><li>Permissions → Repository permissions → Contents 選 Read and write</li><li>Generate token，複製後貼到上方欄位（只會顯示一次）</li></ol>請勿在共用裝置使用；token 外洩時請到 GitHub 立即撤銷。</details></div>`;
 function cost(){const T=tot(),bud=+S.budget||0,sh=S.exp.filter(e=>e.split).reduce((a,e)=>a+tw(e)/e.n,0);
  const by=CATS.map(c=>S.exp.filter(e=>e.cat==c).reduce((a,e)=>a+tw(e),0));
  const days=D.slice(1).map((d,i)=>{const L=S.exp.filter(e=>e.day==i+1);return `<tr><td>${d.d}</td><td class="rr">${L.length} 筆</td><td class="rr"><b>${W(dsum(i+1))}</b></td></tr>`}).join('');
@@ -202,5 +218,4 @@ function cost(){const T=tot(),bud=+S.budget||0,sh=S.exp.filter(e=>e.split).reduc
  </div>`}
 function hint(T,bud){return `<div class="bar"><i style="width:${Math.min(100,T/bud*100)}%;background:${T>bud?'#e03131':'var(--ac)'}"></i></div>`}
 
-draw();
-if(window.L)loadRoutes();
+boot();
