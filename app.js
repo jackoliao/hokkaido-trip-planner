@@ -15,10 +15,47 @@ function kpi(){const K=D.slice(1).reduce((a,d)=>a+sum(d)[0],0),M=D.slice(1).redu
  document.getElementById('kpi').innerHTML=`<div><b>${K} km</b>全程開車</div><div><b>${fmt(M)}</b>總車程</div><div><b>${n}</b>景點</div><div><b>${W(tot())}</b>已記花費</div>`}
 function banner(p){const c=p.t=='s'?['#c92a2a','#ff8787']:p.t=='a'?['#2b8a3e','#8ce99a']:['#0b6bcb','#74c0fc'];
  return `<svg viewBox="0 0 560 200" style="height:190px"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c[0]}"/><stop offset="1" stop-color="${c[1]}"/></linearGradient></defs><rect width="560" height="200" fill="url(#g)"/><circle cx="470" cy="40" r="60" fill="#fff" opacity=".15"/><path d="M0 150 Q140 100 280 150 T560 140 V200 H0Z" fill="#fff" opacity=".2"/><path d="M0 175 Q160 130 300 175 T560 165 V200 H0Z" fill="#fff" opacity=".25"/><text x="50" y="125" font-size="84">${p.ic}</text><text x="160" y="105" font-size="26" fill="#fff" font-weight="700">${p.n}</text><text x="160" y="135" font-size="14" fill="#fff" opacity=".9">${p.stay}</text></svg>`}
+const WK={},WKN={};try{Object.assign(WK,JSON.parse(localStorage.getItem('hk30w')||'{}'))}catch(e){}
+const wkSave=()=>{try{localStorage.setItem('hk30w',JSON.stringify(WK))}catch(e){}};
+const slp=ms=>new Promise(r=>setTimeout(r,ms));
+const big=(u,n)=>u.replace(/\/\d+px-/,'/'+n+'px-');
+const cut=(s,n)=>{if(s.length<=n)return s;const t=s.slice(0,n),i=Math.max(t.lastIndexOf('。'),t.lastIndexOf('. '));return (i>n*.5?t.slice(0,i+1):t)+'…'};
+const esc2=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function wkGet(name){const inf=INFO[name];if(!inf||!inf.w)return null;if(WK[name])return WK[name];if(WKN[name])return null;
+ let res=null;
+ for(const lang of ['zh','ja']){try{
+  const os=await(await fetch(`https://${lang}.wikipedia.org/w/api.php?action=opensearch&format=json&origin=*&limit=1&namespace=0&search=${encodeURIComponent(inf.w)}`)).json();
+  const t=os&&os[1]&&os[1][0];if(!t)continue;
+  const r=await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(t)}`,{headers:{'Accept-Language':'zh-tw'}});if(!r.ok)continue;
+  const j=await r.json();if(!j.extract||j.extract.length<30||j.type=='disambiguation')continue;
+  res={lang,title:j.title,extract:j.extract,thumb:(j.thumbnail&&j.thumbnail.source)||'',page:(j.content_urls&&j.content_urls.desktop&&j.content_urls.desktop.page)||`https://${lang}.wikipedia.org/wiki/${encodeURIComponent(t)}`};break}catch(e){}}
+ if(res){WK[name]=res;wkSave()}else WKN[name]=1;return res}
+async function wkGal(res){if(res.gal)return;try{const m=await(await fetch(`https://${res.lang}.wikipedia.org/api/rest_v1/page/media-list/${encodeURIComponent(res.title)}`)).json();
+ res.gal=(m.items||[]).filter(x=>x.type=='image'&&/\.(jpe?g|png)$/i.test(x.title||'')&&!/flag|icon|logo|map|locator|symbol|commons-logo/i.test(x.title)&&x.srcset&&x.srcset.length).slice(0,4).map(x=>({u:'https:'+x.srcset[x.srcset.length-1].src.replace(/^https?:/,''),f:x.title}));wkSave()}catch(e){res.gal=[]}}
+const thumbOr=p=>{const w=WK[p.n];return w&&w.thumb?`<img src="${big(w.thumb,120)}" alt="" loading="lazy">`:p.ic};
+function infoHtml(p){const i=INFO[p.n]||{};return i.f?`<h4 class="sh2">📌 基本資訊</h4><table class="tb">${i.f.map(r=>`<tr><th style="white-space:nowrap">${r[0]}</th><td>${r[1]}</td></tr>`).join('')}</table>`:''}
+async function enrich(p){const el=document.getElementById('wk');if(!el)return;const i=INFO[p.n]||{};
+ const srcs=[];let h='';
+ const res=await wkGet(p.n);
+ if(document.getElementById('wk')!==el)return;
+ if(res){await wkGal(res);if(document.getElementById('wk')!==el)return;
+  if(res.thumb){const sv=document.querySelector('#sheet > svg');if(sv)sv.outerHTML=`<img class="hero" src="${big(res.thumb,960)}" alt="${esc2(p.n)}" onerror="this.style.display='none'">`}
+  h+=`<h4 class="sh2">📖 ${i.a?'地區介紹':i.d?'料理背景':'景點介紹'}</h4><p>${esc2(cut(res.extract,440))}</p>`;
+  if(res.gal&&res.gal.length)h+=`<h4 class="sh2">🖼 照片</h4><div class="gal">${res.gal.map(g=>`<a href="https://${res.lang}.wikipedia.org/wiki/${encodeURIComponent(g.f)}" target="_blank" rel="noopener"><img loading="lazy" src="${g.u}" alt=""></a>`).join('')}</div><div class="cap">點圖可查看作者與授權（維基共享資源）</div>`;
+  srcs.push(`<a href="${res.page}" target="_blank" rel="noopener">維基百科〈${esc2(res.title)}〉（${res.lang=='zh'?'中文':'日文'}版）</a>，CC BY-SA 4.0`)}
+ else if(i.w)h+=`<div class="mu">目前無法載入維基百科資料（可能是網路或瀏覽器限制）。</div>`;
+ (i.l||[]).forEach(l=>srcs.push(`<a href="${l[1]}" target="_blank" rel="noopener">${l[0]}</a>`));
+ srcs.push('行程表備註：使用者提供的 Excel 行程表');
+ h+=`<h4 class="sh2">🔗 資料出處</h4><ul class="src">${srcs.map(s=>`<li>${s}</li>`).join('')}</ul><div class="cap">營業時間、票價與公休日可能變動，請以官方網站為準。</div>`;
+ el.classList.remove('mu');el.innerHTML=h}
+async function prefetch(){const ns=[...new Set(D.flatMap(d=>d.pts.map(p=>p.n)))];
+ for(const n of ns){if(!INFO[n]||!INFO[n].w)continue;const had=!!WK[n],r=await wkGet(n);
+  if(r&&r.thumb)document.querySelectorAll('.ic').forEach(el=>{if(el.dataset.n==n&&!el.querySelector('img'))el.innerHTML=`<img src="${big(r.thumb,120)}" alt="" loading="lazy">`});
+  if(!had)await slp(150)}}
 function openS(di,i){const d=D[di],p=d.pts[i],prev=d.pts[i-1],eg=S.exp.filter(e=>e.name==p.n);
  const dc=p.t=='s'?'住宿':'門票';
- document.getElementById('sheet').innerHTML=`<button class="close" onclick="closeS()">✕</button>${banner(p)}<div class="bd"><h3>${p.ic} ${p.n}</h3><div>${p.stay?`<span class="tag">⏱ ${p.stay}</span>`:''}<span class="tag">${d.d}</span><span class="tag">${p.la.toFixed(3)}, ${p.lo.toFixed(3)}</span></div><p>${p.desc}</p>${p.tip?`<p class="mu">💡 ${p.tip}</p>`:''}<div class="f"><a class="btn" target="_blank" rel="noopener" href="${gm(p)}">📍 在 Google Maps 開啟</a>${prev?`<a class="btn o" target="_blank" rel="noopener" href="${dir(prev,p)}">🚗 從上一站導航</a>`:''}</div><div class="mu" style="margin-top:10px">記一筆花費（${dc}）</div><div class="f"><input id="qa" type="number" inputmode="numeric" placeholder="金額">${curSel('qa')}<button class="btn" onclick="addE(${di},'${dc}',${JSON.stringify(p.n).replace(/"/g,'&quot;')},'qa')">＋ 新增</button></div>${eg.length?`<div class="mu">此處已記：${eg.map(e=>W(tw(e))).join('、')}</div>`:''}</div>`;
- document.getElementById('shade').classList.add('on')}
+ document.getElementById('sheet').innerHTML=`<button class="close" onclick="closeS()">✕</button>${banner(p)}<div class="bd"><h3>${p.ic} ${p.n}</h3><div>${p.stay?`<span class="tag">⏱ ${p.stay}</span>`:''}<span class="tag">${d.d}</span><span class="tag">${p.la.toFixed(3)}, ${p.lo.toFixed(3)}</span></div><p>${p.desc}</p>${p.tip?`<p class="mu">💡 ${p.tip}</p>`:''}${infoHtml(p)}<div id="wk" class="mu">載入公開資料中…</div><div class="f"><a class="btn" target="_blank" rel="noopener" href="${gm(p)}">📍 在 Google Maps 開啟</a>${prev?`<a class="btn o" target="_blank" rel="noopener" href="${dir(prev,p)}">🚗 從上一站導航</a>`:''}</div><div class="mu" style="margin-top:10px">記一筆花費（${dc}）</div><div class="f"><input id="qa" type="number" inputmode="numeric" placeholder="金額">${curSel('qa')}<button class="btn" onclick="addE(${di},'${dc}',${JSON.stringify(p.n).replace(/"/g,'&quot;')},'qa')">＋ 新增</button></div>${eg.length?`<div class="mu">此處已記：${eg.map(e=>W(tw(e))).join('、')}</div>`:''}</div>`;
+ document.getElementById('shade').classList.add('on');enrich(p)}
 let A={};try{A=JSON.parse(localStorage.getItem('hk27a')||'{}')}catch(e){}
 const saveA=()=>{try{localStorage.setItem('hk27a',JSON.stringify(A));return true}catch(e){alert('瀏覽器儲存空間不足，附件未能儲存。請刪除部分附件或改用較小的檔案。');return false}};
 const rd=f=>new Promise(r=>{const x=new FileReader();x.onload=()=>r(x.result);x.onerror=()=>r(null);x.readAsDataURL(f)});
@@ -108,8 +145,14 @@ function svgInit(){const s=document.getElementById('msvg');if(!s)return;
 function lmap(){const x=D[cur],el=document.getElementById('mapbox');if(!el)return;let keep=null;
  if(LM){if(LD==cur)keep={c:LM.getCenter(),z:LM.getZoom()};try{LM.remove()}catch(e){}LM=null}
  LM=L.map(el);LD=cur;
- const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}),sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'Tiles © Esri'});
- osm.addTo(LM);L.control.layers({'OpenStreetMap':osm,'衛星':sat},null,{position:'topleft'}).addTo(LM);
+ const BASES=[['OpenStreetMap','https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}],['Esri 街道','https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}],['OSM 法國','https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',{maxZoom:20,subdomains:'abc',attribution:'© OpenStreetMap contributors, OSM France'}],['Esri 衛星','https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'Tiles © Esri'}]];
+ let bi=0;try{bi=(+localStorage.getItem('hk30b')||0)%BASES.length}catch(e){}
+ const lys=BASES.map(b=>L.tileLayer(b[1],b[2])),toast=m=>{const t=document.createElement('div');t.className='toast';t.textContent=m;el.appendChild(t);setTimeout(()=>t.remove(),6000)};
+ lys[bi].addTo(LM);L.control.layers(Object.fromEntries(BASES.map((b,i)=>[b[0],lys[i]])),null,{position:'topleft'}).addTo(LM);
+ try{LM.on('baselayerchange',e=>{bi=lys.indexOf(e.layer);try{localStorage.setItem('hk30b',bi)}catch(x){}});
+  let er=0,ok=0;lys.forEach(ly=>{ly.on('tileload',()=>{ok++});ly.on('tileerror',()=>{if(ok||LM._tf)return;er++;if(er<3)return;er=0;
+   if(bi<2){const old=lys[bi];bi++;LM.removeLayer(old);lys[bi].addTo(LM);try{localStorage.setItem('hk30b',bi)}catch(x){}toast('底圖載入失敗，已自動改用「'+BASES[bi][0]+'」')}
+   else{LM._tf=1;toast('底圖無法載入（網路或來源被封鎖），路線與景點仍可使用；可點左上角圖層按鈕改選其他底圖')}})})}catch(e){}
  const ll=x.pts.map(p=>[p.la,p.lo]),r=RT[cur];
  L.polyline(r?r.g:ll,{color:'#e8590c',weight:4,opacity:.85,dashArray:r?null:'8 8'}).addTo(LM);
  x.legs.forEach((l,i)=>{const a=ll[i],b=ll[i+1];L.marker([(a[0]+b[0])/2,(a[1]+b[1])/2],{interactive:false,icon:L.divIcon({className:'',html:`<div class="lg">${l[0]}km · ${fmt(l[1])}</div>`,iconSize:[0,0]})}).addTo(LM)});
@@ -120,7 +163,7 @@ function afterDraw(){if(view!=0){if(LM){try{LM.remove()}catch(e){}LM=null}return
 async function loadRoutes(){for(let i=1;i<D.length;i++){if(RT[i])continue;const c=D[i].pts.map(p=>p.lo+','+p.la).join(';');
  try{const j=await(await fetch(`https://router.project-osrm.org/route/v1/driving/${c}?overview=full&geometries=polyline`)).json();if(j.code!='Ok')continue;const r=j.routes[0];
   RT[i]={p:r.geometry,g:decPoly(r.geometry),legs:r.legs.map(l=>[Math.round(l.distance/100)/10,Math.round(l.duration/60)])};D[i].legs=RT[i].legs;
-  try{localStorage.setItem('hk29r',JSON.stringify(Object.fromEntries(Object.entries(RT).map(([k,v])=>[k,{p:v.p,legs:v.legs}]))))}catch(e){}view==0?draw():kpi()}catch(e){}
+  try{localStorage.setItem('hk29r',JSON.stringify(Object.fromEntries(Object.entries(RT).map(([k,v])=>[k,{p:v.p,legs:v.legs}]))))}catch(e){}view==0&&i==cur?draw():kpi()}catch(e){}
  await new Promise(r=>setTimeout(r,1100))}}
 function draw(){
  document.getElementById('n0').classList.toggle('on',view==0);document.getElementById('n1').classList.toggle('on',view==1);
@@ -128,7 +171,7 @@ function draw(){
  main.innerHTML=view==0?trip():cost();afterDraw()}
 function trip(){const x=D[cur],[tk,tm]=sum(x);
  let h=`<div class="map" id="mapbox">${window.L?'':mapSvg(x)+zoomCtl()}</div><div><div class="card"><h2>${x.d} ${x.t}</h2>${x.note?`<div class="mu">${x.note}</div>`:''}${RT[cur]?'<div class="mu">✓ 里程與時間依 OSRM 實際道路路線計算</div>':''}<div class="stat"><div><b>${tk} km</b>開車距離</div><div><b>${fmt(tm)}</b>開車時間</div><div><b>${W(dsum(cur))}</b>當日花費</div></div><a class="btn" target="_blank" rel="noopener" href="${dayDir(x.pts)}">🧭 在 Google Maps 開啟當日完整路線</a></div><div class="card">`;
- x.pts.forEach((p,i)=>{h+=`<div class="step${i==hi?' hi':''}" onclick="hi=${i};openS(${cur},${i});draw()"><span class="ic ${p.t}">${p.ic}</span><div style="flex:1"><b>${p.n}</b><div class="mu">${p.stay||p.tip||''}</div></div><span class="mu">›</span></div>`;
+ x.pts.forEach((p,i)=>{h+=`<div class="step${i==hi?' hi':''}" onclick="hi=${i};openS(${cur},${i});draw()"><span class="ic ${p.t}" data-n="${p.n}">${thumbOr(p)}</span><div style="flex:1"><b>${p.n}</b><div class="mu">${p.stay||p.tip||''}</div></div><span class="mu">›</span></div>`;
   if(x.legs[i])h+=`<div class="leg">🚗 ${x.legs[i][0]} km · 約 ${fmt(x.legs[i][1])} <a target="_blank" rel="noopener" href="${dir(p,x.pts[i+1])}">Google Maps 導航 ↗</a></div>`});
  h+='</div>';
  if(cur==0){h+=`<div class="card"><h2>每日開車總覽</h2>`;D.slice(1).forEach((d,i)=>{const [k,m]=sum(d);h+=`<div class="row" style="cursor:pointer" onclick="cur=${i+1};draw()"><span>${d.d} ${d.t}</span><span class="mu">${k}km · ${fmt(m)}</span></div>`});h+='</div>'}
@@ -198,8 +241,8 @@ async function loadRoot(){try{
  catch(e){ghMute=false;ghStatus('根目錄 '+GH.path+' 讀取失敗，改用本機資料');return false}}
 async function boot(){main.innerHTML='<div class="mu" style="padding:24px">載入資料中…</div>';
  let dirty=null;try{dirty=localStorage.getItem('hk27d')}catch(e){}
- if(dirty){ghStatus('有尚未同步的本機變更，已沿用本機資料'+(GH.token?'，正在同步到根目錄…':'（未設定 token，無法寫入根目錄）'));booted=true;draw();if(window.L)loadRoutes();if(GH.token)ghPush();return}
- await Promise.race([loadRoot(),new Promise(r=>setTimeout(r,6000))]);booted=true;draw();if(window.L)loadRoutes()}
+ if(dirty){ghStatus('有尚未同步的本機變更，已沿用本機資料'+(GH.token?'，正在同步到根目錄…':'（未設定 token，無法寫入根目錄）'));booted=true;draw();if(window.L)loadRoutes();prefetch();if(GH.token)ghPush();return}
+ await Promise.race([loadRoot(),new Promise(r=>setTimeout(r,6000))]);booted=true;draw();if(window.L)loadRoutes();prefetch()}
 const ghField=(k,l,t)=>`<label class="mu">${l}<input type="${t||'text'}" value="${GH[k]}" autocomplete="off" onchange="GH.${k}=this.value.trim();ghSave()"></label>`;
 const ghCard=()=>`<div class="card"><h2>☁️ GitHub 同步</h2><div class="mu">把花費存成 repository 根目錄的 <b>${GH.path}</b>（有附件時另存 ${attPath()}）。<b style="color:#e03131">⚠️ 公開 repository 裡的檔案，任何人都看得到。</b></div><div class="f">${ghField('owner','帳號')}${ghField('repo','Repository')}</div><div class="f">${ghField('branch','分支')}${ghField('path','檔名')}</div><div class="f">${ghField('token','存取權杖（token，只存在這個瀏覽器）','password')}</div><div class="mu">每次修改會同時存到本機與根目錄 expenses.json（需填寫 token）。開啟網站時會先讀根目錄，讀不到才使用本機資料。</div><div class="f"><button class="btn" onclick="ghPush()">☁️ 儲存到 GitHub</button><button class="btn o" onclick="ghPull()">⬇️ 從 GitHub 載入</button></div><div class="mu" id="ghs">${GHS}</div><details class="mu" style="margin-top:6px"><summary>如何取得 token</summary><ol style="padding-left:18px;margin:6px 0"><li>GitHub 右上角頭像 → Settings → Developer settings</li><li>Personal access tokens → Fine-grained tokens → Generate new token</li><li>Repository access 選 Only select repositories，只勾這個 repository</li><li>Permissions → Repository permissions → Contents 選 Read and write</li><li>Generate token，複製後貼到上方欄位（只會顯示一次）</li></ol>請勿在共用裝置使用；token 外洩時請到 GitHub 立即撤銷。</details></div>`;
 function cost(){const T=tot(),bud=+S.budget||0,sh=S.exp.filter(e=>e.split).reduce((a,e)=>a+tw(e)/e.n,0);

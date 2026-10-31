@@ -11,6 +11,7 @@
 - 花費 PDF：「⬇️ 全部明細轉 PDF」直接下載 A4 PDF，包含分類、完整明細、平分與收據縮圖（使用 html2pdf.js 0.10.2，由 cdnjs 載入）。
 - 費用總表：天 × 分類的矩陣，格子可直接修改金額（台幣），並有每日小計與分類合計；PDF 報表亦包含。
 - 備份：花費管理頁可「匯出備份」成 JSON 檔（含附件），並可「匯入備份」還原；換裝置或清除瀏覽器資料前請先匯出。
+- 景點詳情：每個景點頁會即時從維基百科（中文，缺漏時用日文）取得介紹與照片並標明條目連結與 CC BY-SA 授權，附官方／觀光協會連結；函館山另附已查證的營運資訊。資料設定在 js/info.js。
 - 載入順序：開啟時先讀根目錄 expenses.json（有 token 走 GitHub API，否則讀網站同層檔案），讀不到才用 localStorage；若本機有尚未同步的變更則沿用本機。存檔時同時寫入 localStorage 與根目錄 expenses.json（需 token）。
 - GitHub 同步：以 Fine-grained token 將花費存成 repository 根目錄的 expenses.json（附件另存 expenses-attachments.json），可手動或修改後自動儲存，並可從 GitHub 載入。注意：公開 repository 的檔案任何人都看得到。
 - 花費管理：摘要與清單同頁，清單為表格（頂部可直接新增，每列可編輯或刪除）。
